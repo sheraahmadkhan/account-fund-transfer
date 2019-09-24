@@ -18,12 +18,17 @@ public class FundTransferService {
         Account sourceAccount = findAccountOrElse(source, IllegalArgumentException::new);
         Account targetAccount = findAccountOrElse(target, IllegalArgumentException::new);
 
-        unitOfWork.begin();
-        withDraw(amount, sourceAccount);
-        deposit(amount, targetAccount);
-        unitOfWork.commit();
+        TransactionalCallback callback = () -> {
+            unitOfWork.begin();
+            try {
+                withdraw(amount, sourceAccount);
+                deposit(amount, targetAccount);
+            } finally {
+                unitOfWork.commit();
+            }
+        };
+        callback.doInTransaction();
     }
-
 
     private Account findAccountOrElse(UUID source, Supplier<IllegalArgumentException> exception) {
         return bankRepository.getAccountBy(source)
@@ -36,7 +41,7 @@ public class FundTransferService {
         System.out.println(">> Deposit: " + targetAccount);
     }
 
-    private void withDraw(BigDecimal amount, Account sourceAccount) {
+    private void withdraw(BigDecimal amount, Account sourceAccount) {
         sourceAccount.withdraw(amount);
         bankRepository.update(sourceAccount);
         System.out.println(">> Withdraw : " + sourceAccount);
